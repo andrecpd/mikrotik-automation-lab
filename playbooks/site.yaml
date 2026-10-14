@@ -1,0 +1,5 @@
+- name: Configuração Inicial das Filiais MikroTik
+  hosts: mikrotik_filiais
+  gather_facts: no
+  roles:
+    - base_config

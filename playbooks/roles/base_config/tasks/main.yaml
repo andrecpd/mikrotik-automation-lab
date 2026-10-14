@@ -1,0 +1,9 @@
+- name: Garantir identidade do roteador baseada no inventário
+  routeros_command:
+    commands:
+      - "/system identity set name=MikroTik-{{ inventory_hostname }}"
+
+- name: Configurar Servidor NTP Global
+  routeros_command:
+    commands:
+      - "/system ntp client set enabled=yes primary-ntp=200.160.0.8 secondary-ntp=200.189.40.8"
