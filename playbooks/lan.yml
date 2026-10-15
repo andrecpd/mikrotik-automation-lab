@@ -1,0 +1,65 @@
+---
+- name: Provisionar LAN no MikroTik RouterOS
+  hosts: mikrotik_filiais
+  gather_facts: false
+  connection: ansible.netcommon.network_cli
+  vars_files:
+    - ../config/lan.yml
+
+  pre_tasks:
+    - name: Validar variáveis obrigatórias da LAN
+      ansible.builtin.assert:
+        that:
+          - lan.bridge is defined
+          - lan.interface_ports | length > 0
+          - lan.gateway_cidr is defined
+          - lan.network is defined
+        fail_msg: "Configuração da LAN incompleta. Revise config/lan.yml."
+
+    - name: Exibir plano que será aplicado
+      ansible.builtin.debug:
+        msg:
+          - "Bridge: {{ lan.bridge }}"
+          - "Portas LAN: {{ lan.interface_ports | join(', ') }}"
+          - "Gateway: {{ lan.gateway_cidr }}"
+          - "Rede: {{ lan.network }}"
+          - "DHCP habilitado: {{ lan.dhcp.enabled }}"
+
+  tasks:
+    - name: Criar bridge caso ainda não exista
+      community.routeros.command:
+        commands:
+          - ':if ([:len [/interface bridge find where name="{{ lan.bridge }}"]] = 0) do={/interface bridge add name="{{ lan.bridge }}" comment="Gerenciado pelo Ansible"}'
+
+    - name: Associar portas à bridge sem duplicar portas já cadastradas
+      community.routeros.command:
+        commands:
+          - ':if ([:len [/interface bridge port find where interface="{{ item }}"]] = 0) do={/interface bridge port add bridge="{{ lan.bridge }}" interface="{{ item }}" comment="LAN gerenciada pelo Ansible"}'
+      loop: "{{ lan.interface_ports }}"
+
+    - name: Configurar gateway da LAN caso o endereço ainda não exista
+      community.routeros.command:
+        commands:
+          - ':if ([:len [/ip address find where address="{{ lan.gateway_cidr }}" and interface="{{ lan.bridge }}"]] = 0) do={/ip address add address="{{ lan.gateway_cidr }}" interface="{{ lan.bridge }}" comment="Gateway LAN gerenciado pelo Ansible"}'
+
+    - name: Criar pool DHCP se habilitado e ainda não existir
+      community.routeros.command:
+        commands:
+          - ':if ([:len [/ip pool find where name="{{ lan.dhcp.pool_name }}"]] = 0) do={/ip pool add name="{{ lan.dhcp.pool_name }}" ranges="{{ lan.dhcp.pool_range }}"}'
+      when: lan.dhcp.enabled | bool
+
+    - name: Criar servidor DHCP se habilitado e ainda não existir
+      community.routeros.command:
+        commands:
+          - ':if ([:len [/ip dhcp-server find where name="{{ lan.dhcp.server_name }}"]] = 0) do={/ip dhcp-server add name="{{ lan.dhcp.server_name }}" interface="{{ lan.bridge }}" address-pool="{{ lan.dhcp.pool_name }}" lease-time="{{ lan.dhcp.lease_time }}" disabled=no}'
+      when: lan.dhcp.enabled | bool
+
+    - name: Criar parâmetros de rede DHCP se ainda não existirem
+      community.routeros.command:
+        commands:
+          - ':if ([:len [/ip dhcp-server network find where address="{{ lan.network }}"]] = 0) do={/ip dhcp-server network add address="{{ lan.network }}" gateway="{{ lan.gateway_cidr.split("/")[0] }}" dns-server="{{ lan.dhcp.dns_servers | join(",") }}"}'
+      when: lan.dhcp.enabled | bool
+
+    - name: Exibir lembrete de validação pós-mudança
+      ansible.builtin.debug:
+        msg: "Execute scripts/audit_lan.py e valide conectividade de clientes antes de considerar a LAN pronta."
