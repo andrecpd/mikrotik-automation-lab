@@ -3,3 +3,7 @@ __pycache__/
 .env
 /opt/
 venv/
+.venv/
+reports/*
+!reports/.gitkeep
+*.retry

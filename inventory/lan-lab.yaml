@@ -1,0 +1,8 @@
+---
+all:
+  children:
+    lan_lab:
+      hosts:
+        chr_lan_lab:
+          ansible_host: 192.168.3.11
+          ansible_port: 22

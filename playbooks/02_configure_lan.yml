@@ -1,0 +1,98 @@
+---
+- name: Configurar LAN no MikroTik CHR (confirmação explícita obrigatória)
+  hosts: lan_lab
+  gather_facts: false
+  connection: ansible.netcommon.network_cli
+  vars_files:
+    - ../vars/lan.yml
+  pre_tasks:
+    - name: Bloquear alterações sem confirmação explícita
+      ansible.builtin.assert:
+        that:
+          - apply_lan_config | default(false) | bool
+        fail_msg: "BLOQUEADO. Revise a configuração e use -e apply_lan_config=true somente no CHR de laboratório."
+        quiet: true
+    - name: Exigir senha no ambiente
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'MIKROTIK_PASSWORD') | length > 0
+        fail_msg: "Defina MIKROTIK_PASSWORD no ambiente."
+        quiet: true
+      delegate_to: localhost
+      run_once: true
+    - name: Validar parâmetros localmente antes de alterações
+      ansible.builtin.command:
+        argv: [python3, scripts/lan_precheck.py]
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+  tasks:
+    - name: Consultar estado atual (somente leitura)
+      community.routeros.command:
+        commands:
+          - "/interface bridge print detail"
+          - "/interface bridge port print detail"
+          - "/ip address print detail"
+          - "/ip pool print detail"
+          - "/ip dhcp-server print detail"
+          - "/ip dhcp-server network print detail"
+      changed_when: false
+
+    - name: Criar bridge se ausente
+      community.routeros.command:
+        commands:
+          - ':if ([:len [/interface bridge find where name="{{ lan.bridge_name }}"]] = 0) do={ /interface bridge add name="{{ lan.bridge_name }}" protocol-mode={{ lan.bridge_protocol }} comment="managed-by-netops-lan-lab" }'
+      changed_when: false
+
+    - name: Garantir protocolo da bridge
+      community.routeros.command:
+        commands:
+          - '/interface bridge set [find where name="{{ lan.bridge_name }}"] protocol-mode={{ lan.bridge_protocol }}'
+      changed_when: true
+
+    - name: Adicionar portas ausentes à bridge (não remove associações antigas)
+      community.routeros.command:
+        commands:
+          - ':if ([:len [/interface bridge port find where interface="ether2" and bridge="{{ lan.bridge_name }}"]] = 0) do={ /interface bridge port add bridge="{{ lan.bridge_name }}" interface="ether2" comment="managed-by-netops-lan-lab" }'
+          - ':if ([:len [/interface bridge port find where interface="ether3" and bridge="{{ lan.bridge_name }}"]] = 0) do={ /interface bridge port add bridge="{{ lan.bridge_name }}" interface="ether3" comment="managed-by-netops-lan-lab" }'
+          - ':if ([:len [/interface bridge port find where interface="ether4" and bridge="{{ lan.bridge_name }}"]] = 0) do={ /interface bridge port add bridge="{{ lan.bridge_name }}" interface="ether4" comment="managed-by-netops-lan-lab" }'
+      changed_when: true
+
+    - name: Adicionar endereço gateway se ausente
+      community.routeros.command:
+        commands:
+          - ':if ([:len [/ip address find where address="{{ lan.gateway_cidr }}" and interface="{{ lan.bridge_name }}"]] = 0) do={ /ip address add address="{{ lan.gateway_cidr }}" interface="{{ lan.bridge_name }}" comment="managed-by-netops-lan-lab" }'
+      changed_when: true
+
+    - name: Criar ou ajustar pool DHCP nomeado
+      community.routeros.command:
+        commands:
+          - ':if ([:len [/ip pool find where name="{{ lan.dhcp.pool_name }}"]] = 0) do={ /ip pool add name="{{ lan.dhcp.pool_name }}" ranges="{{ lan.dhcp.range_start }}-{{ lan.dhcp.range_end }}" comment="managed-by-netops-lan-lab" } else={ /ip pool set [find where name="{{ lan.dhcp.pool_name }}"] ranges="{{ lan.dhcp.range_start }}-{{ lan.dhcp.range_end }}" }'
+      changed_when: true
+
+    - name: Criar ou ajustar servidor DHCP nomeado
+      community.routeros.command:
+        commands:
+          - ':if ([:len [/ip dhcp-server find where name="{{ lan.dhcp.server_name }}"]] = 0) do={ /ip dhcp-server add name="{{ lan.dhcp.server_name }}" interface="{{ lan.bridge_name }}" address-pool="{{ lan.dhcp.pool_name }}" lease-time="{{ lan.dhcp.lease_time }}" disabled=no comment="managed-by-netops-lan-lab" } else={ /ip dhcp-server set [find where name="{{ lan.dhcp.server_name }}"] interface="{{ lan.bridge_name }}" address-pool="{{ lan.dhcp.pool_name }}" lease-time="{{ lan.dhcp.lease_time }}" disabled=no }'
+      changed_when: true
+
+    - name: Criar ou ajustar rede DHCP
+      community.routeros.command:
+        commands:
+          - ':if ([:len [/ip dhcp-server network find where address="192.168.10.0/24"]] = 0) do={ /ip dhcp-server network add address="192.168.10.0/24" gateway="192.168.10.1" comment="managed-by-netops-lan-lab" } else={ /ip dhcp-server network set [find where address="192.168.10.0/24"] gateway="192.168.10.1" }'
+      changed_when: true
+
+    - name: Ler estado depois das alterações
+      community.routeros.command:
+        commands:
+          - "/interface bridge print detail"
+          - "/interface bridge port print detail"
+          - "/ip address print detail"
+          - "/ip pool print detail"
+          - "/ip dhcp-server print detail"
+          - "/ip dhcp-server network print detail"
+      changed_when: false
+
+    - name: Orientar auditoria final
+      ansible.builtin.debug:
+        msg: "Configuração enviada. Execute python scripts/lan_audit.py para auditoria PASS/FAIL independente."

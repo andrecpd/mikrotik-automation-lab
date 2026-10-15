@@ -1,0 +1,21 @@
+---
+# Valores de rede confirmados pelo responsável pelo laboratório.
+lan:
+  management_ip: "192.168.3.11"
+  bridge_name: "br-lan"            # nome escolhido para este exemplo
+  gateway_cidr: "192.168.10.1/24"
+  ports:
+    - "ether2"
+    - "ether3"
+    - "ether4"
+  dhcp:
+    enabled: true
+    pool_name: "pool-lan"           # nome escolhido para este exemplo
+    server_name: "dhcp-lan"         # nome escolhido para este exemplo
+    range_start: "192.168.10.100"
+    range_end: "192.168.10.200"
+    lease_time: "1d"                # exemplo documentado; ajuste conforme política local
+  bridge_protocol: "rstp"           # escolha documentada para o laboratório
+  api:
+    host: "192.168.3.11"
+    port: 8728                      # API sem TLS: restrinja à rede de gerenciamento

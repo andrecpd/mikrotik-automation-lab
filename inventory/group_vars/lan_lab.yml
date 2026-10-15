@@ -1,0 +1,9 @@
+---
+# Credenciais via ambiente: nunca armazene senha neste arquivo.
+ansible_connection: ansible.netcommon.network_cli
+ansible_network_os: community.routeros.routeros
+ansible_user: "{{ lookup('env', 'MIKROTIK_USER') | default('admin', true) }}"
+ansible_password: "{{ lookup('env', 'MIKROTIK_PASSWORD') }}"
+ansible_command_timeout: 30
+ansible_connect_timeout: 10
+ansible_become: false

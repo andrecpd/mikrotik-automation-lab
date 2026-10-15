@@ -1,0 +1,40 @@
+---
+- name: Pré-validação LAN MikroTik (somente leitura)
+  hosts: lan_lab
+  gather_facts: false
+  connection: ansible.netcommon.network_cli
+  vars_files:
+    - ../vars/lan.yml
+  pre_tasks:
+    - name: Confirmar senha disponível sem exibi-la
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'MIKROTIK_PASSWORD') | length > 0
+        fail_msg: "Defina MIKROTIK_PASSWORD no ambiente."
+        quiet: true
+      delegate_to: localhost
+      run_once: true
+    - name: Validar parâmetros críticos do perfil aprovado
+      ansible.builtin.assert:
+        that:
+          - lan.management_ip == ansible_host
+          - lan.gateway_cidr == "192.168.10.1/24"
+          - lan.ports | length == 3
+          - lan.dhcp.range_start == "192.168.10.100"
+          - lan.dhcp.range_end == "192.168.10.200"
+          - lan.dhcp.enabled | bool
+        fail_msg: "Parâmetros divergem do perfil aprovado. Revise vars/lan.yml e inventário."
+        quiet: true
+  tasks:
+    - name: Ler identidade e recursos do RouterOS
+      community.routeros.command:
+        commands:
+          - "/system identity print"
+          - "/system resource print"
+      register: readonly_state
+      changed_when: false
+    - name: Resumo do pré-check
+      ansible.builtin.debug:
+        msg:
+          - "SSH RouterOS respondeu; pré-check de conectividade PASS."
+          - "{{ readonly_state.stdout[0] | default('Identidade recebida') }}"
