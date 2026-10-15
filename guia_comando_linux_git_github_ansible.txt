@@ -1,0 +1,389 @@
+GUIA DE COMANDOS LINUX, GIT, GITHUB E ANSIBLE
+Projeto: mikrotik-automation-lab
+Objetivo: referência prática para trabalhar pelo terminal Linux.
+
+======================================================================
+1. NAVEGAÇÃO E ARQUIVOS NO LINUX
+======================================================================
+
+pwd
+  Mostra o caminho completo do diretório atual.
+
+ls
+  Lista arquivos e pastas do diretório atual.
+
+ls -la
+  Lista também arquivos ocultos e exibe detalhes como permissões e proprietário.
+
+cd ~/mikrotik-automation-lab
+  Entra na pasta do projeto localizada no diretório pessoal.
+
+cd ..
+  Volta um nível na estrutura de diretórios.
+
+cd ~
+  Volta ao diretório pessoal do usuário.
+
+mkdir nome_da_pasta
+  Cria uma pasta.
+
+mkdir -p pasta/subpasta
+  Cria pastas intermediárias necessárias, sem erro se já existirem.
+
+touch arquivo.txt
+  Cria um arquivo vazio, ou atualiza a data de modificação se ele já existir.
+
+cat arquivo.txt
+  Exibe o conteúdo de um arquivo de texto.
+
+less arquivo.txt
+  Permite ler um arquivo longo página por página. Pressione q para sair.
+
+nano arquivo.txt
+  Abre um editor de texto no terminal. Salve com Ctrl+O, Enter e saia com Ctrl+X.
+
+cp origem destino
+  Copia um arquivo ou pasta. Para copiar pastas, use: cp -r pasta destino.
+
+mv origem destino
+  Move ou renomeia arquivos e pastas.
+
+rm arquivo.txt
+  Exclui um arquivo. A exclusão normalmente não vai para a lixeira.
+
+rm -r pasta
+  Exclui uma pasta e seu conteúdo. Confira o caminho antes de executar.
+
+find . -name "arquivo.txt"
+  Procura um arquivo com esse nome a partir do diretório atual.
+
+tree
+  Mostra a estrutura de pastas em formato de árvore. Instale, se necessário:
+  sudo apt update && sudo apt install tree -y
+
+clear
+  Limpa a tela do terminal.
+
+history
+  Mostra o histórico de comandos executados.
+
+======================================================================
+2. CRIAR A ESTRUTURA DO PROJETO MIKROTIK
+======================================================================
+
+mkdir -p ~/mikrotik-automation-lab/{inventory,playbooks/roles/base_config/{tasks,templates},scripts}
+  Cria todas as pastas do laboratório de automação.
+
+cd ~/mikrotik-automation-lab
+  Entra na pasta principal do projeto.
+
+touch .gitignore README.md inventory/hosts.yaml playbooks/site.yaml playbooks/roles/base_config/tasks/main.yaml playbooks/roles/base_config/templates/ntp.j2 scripts/requirements.txt scripts/audit_connectivity.py
+  Cria os arquivos iniciais do projeto. Eles ficam vazios até serem editados.
+
+tree ~/mikrotik-automation-lab
+  Confere a estrutura criada.
+
+======================================================================
+3. ATUALIZAÇÃO E INSTALAÇÃO DE PACOTES (UBUNTU/DEBIAN)
+======================================================================
+
+sudo apt update
+  Atualiza a lista de pacotes disponíveis nos repositórios.
+
+sudo apt upgrade
+  Instala atualizações disponíveis para os pacotes instalados.
+
+sudo apt install nome_do_pacote -y
+  Instala um pacote. O parâmetro -y confirma automaticamente as perguntas comuns.
+
+sudo apt install git python3 python3-pip python3-venv tree -y
+  Instala Git, Python, pip, suporte a ambientes virtuais e o utilitário tree.
+
+python3 --version
+  Exibe a versão do Python 3.
+
+pip3 --version
+  Exibe a versão do pip.
+
+git --version
+  Exibe a versão do Git.
+
+======================================================================
+4. CONFIGURAR O GIT
+======================================================================
+
+git config --global user.name "Seu Nome"
+  Define o nome do autor usado nos commits.
+
+git config --global user.email "seu-email@example.com"
+  Define o e-mail usado nos commits.
+
+git config --global --list
+  Lista as configurações globais do Git.
+
+git config --global init.defaultBranch main
+  Define main como nome padrão da branch inicial em novos repositórios.
+
+======================================================================
+5. ENVIAR UM PROJETO NOVO PARA O GITHUB
+======================================================================
+
+cd ~/mikrotik-automation-lab
+  Entre na pasta do projeto antes de executar os comandos Git.
+
+git init
+  Inicializa um repositório Git local na pasta atual.
+
+git status
+  Mostra arquivos modificados, novos arquivos e o estado do repositório.
+
+git add .
+  Prepara todas as alterações da pasta atual para o próximo commit.
+  Confira antes se não está adicionando senhas, tokens ou arquivos privados.
+
+git add README.md
+  Prepara apenas o arquivo indicado para o próximo commit.
+
+git commit -m "Adiciona estrutura inicial do laboratorio"
+  Registra as alterações preparadas em um commit com uma mensagem descritiva.
+
+git branch -M main
+  Renomeia a branch atual para main.
+
+git remote add origin https://github.com/SEU_USUARIO/mikrotik-automation-lab.git
+  Liga o repositório local a um repositório remoto do GitHub.
+  Troque SEU_USUARIO pelo usuário correto. O repositório remoto deve existir.
+
+git remote -v
+  Mostra as URLs dos repositórios remotos configurados.
+
+git push -u origin main
+  Envia a branch main ao GitHub e configura o acompanhamento da branch remota.
+
+IMPORTANTE:
+  Crie primeiro o repositório no GitHub, por exemplo em https://github.com/new.
+  Se o remoto já estiver configurado, não execute git remote add origin novamente.
+  Se aparecer "remote origin already exists", confira com git remote -v.
+  Para corrigir uma URL remota existente, use:
+  git remote set-url origin https://github.com/SEU_USUARIO/mikrotik-automation-lab.git
+
+======================================================================
+6. ATUALIZAR O GITHUB DEPOIS DA PRIMEIRA PUBLICAÇÃO
+======================================================================
+
+git status
+  Confere quais arquivos foram alterados.
+
+git add .
+  Prepara as novas alterações para o commit.
+
+git commit -m "Descreve as alteracoes realizadas"
+  Salva as alterações no histórico local.
+
+git push
+  Envia os commits locais para a branch remota já configurada.
+
+git pull
+  Baixa e integra alterações da branch remota atual. Confira se há mudanças locais
+  antes de executar, para evitar conflitos inesperados.
+
+git log --oneline
+  Exibe o histórico de commits de forma resumida.
+
+git diff
+  Mostra alterações ainda não preparadas para commit.
+
+git diff --staged
+  Mostra alterações que já foram preparadas com git add.
+
+git restore arquivo.txt
+  Descarta alterações locais ainda não preparadas nesse arquivo. Use com cuidado.
+
+git restore --staged arquivo.txt
+  Retira o arquivo da área de preparação, sem apagar suas alterações locais.
+
+======================================================================
+7. AUTENTICAÇÃO DO GITHUB PELO TERMINAL
+======================================================================
+
+gh --version
+  Verifica se o GitHub CLI está instalado.
+
+sudo apt install gh -y
+  Instala o GitHub CLI em sistemas Ubuntu/Debian quando disponível nos repositórios.
+
+gh auth login
+  Inicia o processo interativo de autenticação com o GitHub.
+
+gh auth status
+  Mostra o estado da autenticação do GitHub CLI.
+
+NOTA DE SEGURANÇA:
+  O GitHub não aceita a senha normal da conta para autenticação Git por HTTPS.
+  Use o GitHub CLI, autenticação por navegador ou um token pessoal protegido.
+  Nunca coloque tokens diretamente em comandos que possam ficar no histórico.
+  Nunca envie senhas, tokens, chaves privadas ou arquivos .env para o repositório.
+
+======================================================================
+8. PYTHON E AMBIENTE VIRTUAL
+======================================================================
+
+python3 --version
+  Verifica a versão instalada do Python.
+
+python3 -m venv .venv
+  Cria um ambiente virtual Python local na pasta .venv.
+
+source .venv/bin/activate
+  Ativa o ambiente virtual no terminal atual.
+
+deactivate
+  Desativa o ambiente virtual.
+
+python -m pip install --upgrade pip
+  Atualiza o pip dentro do ambiente virtual ativo.
+
+pip install -r scripts/requirements.txt
+  Instala as bibliotecas listadas no arquivo requirements.txt.
+
+python scripts/audit_connectivity.py
+  Executa o script Python de auditoria. O script precisa estar implementado e
+  configurado antes de produzir resultados úteis.
+
+======================================================================
+9. ANSIBLE
+======================================================================
+
+ansible --version
+  Exibe a versão do Ansible e informações de configuração.
+
+ansible-inventory -i inventory/hosts.yaml --list
+  Valida e exibe o inventário em formato JSON.
+
+ansible-inventory -i inventory/hosts.yaml --graph
+  Exibe grupos e hosts do inventário em formato de árvore.
+
+ansible all -i inventory/hosts.yaml -m ping
+  Testa a conectividade Ansible com todos os hosts do inventário.
+  O resultado depende do método de conexão e da configuração de cada dispositivo.
+
+ansible-playbook -i inventory/hosts.yaml playbooks/site.yaml --syntax-check
+  Verifica a sintaxe do playbook sem executar as tarefas.
+
+ansible-playbook -i inventory/hosts.yaml playbooks/site.yaml --list-hosts
+  Lista os hosts que seriam selecionados pelo playbook.
+
+ansible-playbook -i inventory/hosts.yaml playbooks/site.yaml --list-tasks
+  Lista as tarefas do playbook sem executá-las.
+
+ansible-playbook -i inventory/hosts.yaml playbooks/site.yaml --check
+  Tenta simular alterações. Nem todos os módulos ou dispositivos oferecem
+  suporte completo ao modo de verificação; não garante ausência de impacto.
+
+ansible-playbook -i inventory/hosts.yaml playbooks/site.yaml -v
+  Executa o playbook com saída mais detalhada. Use -vv ou -vvv para mais detalhes.
+
+CUIDADO COM MIKROTIK:
+  A conexão com RouterOS normalmente exige uma coleção e um método de conexão
+  compatíveis, por exemplo módulos da coleção community.routeros via API ou SSH,
+  conforme a implementação. O módulo Ansible "ping" não é um teste ICMP: ele
+  testa a conexão Ansible do tipo configurado e não funciona automaticamente
+  em qualquer roteador MikroTik.
+
+======================================================================
+10. CONECTIVIDADE E REDE
+======================================================================
+
+ip addr
+  Mostra interfaces de rede e endereços IP configurados.
+
+ip route
+  Mostra a tabela de rotas do Linux.
+
+ping 192.168.3.10
+  Testa conectividade IP com o endereço informado. Interrompa com Ctrl+C.
+
+ip neigh
+  Mostra a tabela de vizinhos da rede local, incluindo entradas ARP/NDP.
+
+ss -tulpen
+  Exibe sockets TCP/UDP em escuta e processos associados, quando permitido.
+
+getent hosts github.com
+  Consulta a resolução do nome de domínio usando os mecanismos do sistema.
+
+curl -I https://github.com
+  Faz uma solicitação HTTP HEAD para testar acesso HTTPS ao GitHub.
+
+ssh usuario@192.168.3.10
+  Tenta abrir uma sessão SSH no endereço informado, se o serviço estiver habilitado
+  e o usuário tiver autorização.
+
+======================================================================
+11. PERMISSÕES E DIAGNÓSTICO
+======================================================================
+
+whoami
+  Mostra o usuário atual.
+
+id
+  Mostra o UID, GID e os grupos do usuário atual.
+
+df -h
+  Mostra o espaço disponível nos sistemas de arquivos.
+
+free -h
+  Mostra o uso de memória RAM e swap.
+
+top
+  Mostra processos e consumo de recursos em tempo real. Pressione q para sair.
+
+sudo systemctl status nome_do_servico
+  Mostra o estado de um serviço gerenciado pelo systemd.
+
+journalctl -u nome_do_servico
+  Mostra registros de log do serviço indicado.
+
+chmod +x script.sh
+  Adiciona permissão de execução ao script para os usuários conforme as permissões
+  existentes.
+
+======================================================================
+12. ROTINA RECOMENDADA PARA CADA ALTERAÇÃO NO PROJETO
+======================================================================
+
+1. Entre no projeto:
+   cd ~/mikrotik-automation-lab
+
+2. Confira as alterações:
+   git status
+   git diff
+
+3. Valide o inventário ou os playbooks quando aplicável:
+   ansible-inventory -i inventory/hosts.yaml --graph
+   ansible-playbook -i inventory/hosts.yaml playbooks/site.yaml --syntax-check
+
+4. Prepare os arquivos:
+   git add .
+
+5. Registre as alterações:
+   git commit -m "Descreve a alteracao"
+
+6. Envie para o GitHub:
+   git push
+
+======================================================================
+13. BOAS PRÁTICAS
+======================================================================
+
+- Confira sempre o diretório atual com pwd antes de apagar ou alterar arquivos.
+- Evite executar comandos destrutivos sem entender o efeito.
+- Não versione senhas, tokens, chaves privadas, arquivos .env ou dados sensíveis.
+- Use o arquivo .gitignore para excluir arquivos locais e temporários do Git.
+- Faça commits pequenos e com mensagens claras.
+- Teste playbooks em laboratório antes de aplicar mudanças em roteadores reais.
+- Faça backup das configurações dos roteadores antes de mudanças relevantes.
+- Documente no README.md os requisitos, a topologia, a instalação e a execução.
+- Para comandos de RouterOS, valide a sintaxe de acordo com a versão instalada.
+
+FIM DO GUIA
