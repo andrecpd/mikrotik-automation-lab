@@ -22,7 +22,9 @@
       run_once: true
     - name: Validar parâmetros localmente antes de alterações
       ansible.builtin.command:
-        argv: [python3, scripts/lan_precheck.py]
+        argv:
+          - python3
+          - "{{ playbook_dir }}/../scripts/lan_precheck.py"
       delegate_to: localhost
       run_once: true
       changed_when: false
