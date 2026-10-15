@@ -19,7 +19,9 @@ all:
           local_as: 65014
           lan_subnet: 192.168.40.0/24
   vars:
-    ansible_user: admin
-    ansible_password: "Andremsn1!"
-    ansible_connection: ansible.netcommon.routeros
-    ansible_network_os: routeros
+    # Defina MIKROTIK_USER e MIKROTIK_PASSWORD no shell; nunca versionar credenciais.
+    ansible_user: "{{ lookup('env', 'MIKROTIK_USER') }}"
+    ansible_password: "{{ lookup('env', 'MIKROTIK_PASSWORD') }}"
+    ansible_connection: ansible.netcommon.network_cli
+    ansible_network_os: community.routeros.routeros
+    ansible_command_timeout: 30
