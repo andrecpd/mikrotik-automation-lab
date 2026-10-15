@@ -26,6 +26,7 @@
       delegate_to: localhost
       run_once: true
       changed_when: false
+
   tasks:
     - name: Consultar estado atual (somente leitura)
       community.routeros.command:
@@ -38,48 +39,135 @@
           - "/ip dhcp-server network print detail"
       changed_when: false
 
-    - name: Criar bridge se ausente
+    - name: Consultar bridge gerenciada
       community.routeros.command:
         commands:
-          - ':if ([:len [/interface bridge find where name="{{ lan.bridge_name }}"]] = 0) do={ /interface bridge add name="{{ lan.bridge_name }}" protocol-mode={{ lan.bridge_protocol }} comment="managed-by-netops-lan-lab" }'
+          - "/interface bridge print where name=br-lan"
+      register: bridge_query
       changed_when: false
 
-    - name: Garantir protocolo da bridge
+    - name: Criar bridge somente se ausente
       community.routeros.command:
         commands:
-          - '/interface bridge set [find where name="{{ lan.bridge_name }}"] protocol-mode={{ lan.bridge_protocol }}'
+          - "/interface bridge add name=br-lan protocol-mode=rstp comment=managed-by-netops-lan-lab"
+      when: "'br-lan' not in (bridge_query.stdout | join(' '))"
+
+    - name: Garantir protocolo da bridge existente
+      community.routeros.command:
+        commands:
+          - "/interface bridge set [find where name=br-lan] protocol-mode=rstp"
       changed_when: true
 
-    - name: Adicionar portas ausentes à bridge (não remove associações antigas)
+    - name: Consultar porta ether2
       community.routeros.command:
         commands:
-          - ':if ([:len [/interface bridge port find where interface="ether2" and bridge="{{ lan.bridge_name }}"]] = 0) do={ /interface bridge port add bridge="{{ lan.bridge_name }}" interface="ether2" comment="managed-by-netops-lan-lab" }'
-          - ':if ([:len [/interface bridge port find where interface="ether3" and bridge="{{ lan.bridge_name }}"]] = 0) do={ /interface bridge port add bridge="{{ lan.bridge_name }}" interface="ether3" comment="managed-by-netops-lan-lab" }'
-          - ':if ([:len [/interface bridge port find where interface="ether4" and bridge="{{ lan.bridge_name }}"]] = 0) do={ /interface bridge port add bridge="{{ lan.bridge_name }}" interface="ether4" comment="managed-by-netops-lan-lab" }'
+          - "/interface bridge port print where interface=ether2"
+      register: port2_query
+      changed_when: false
+
+    - name: Adicionar ether2 à bridge se não estiver associada a nenhuma bridge
+      community.routeros.command:
+        commands:
+          - "/interface bridge port add bridge=br-lan interface=ether2 comment=managed-by-netops-lan-lab"
+      when: "'ether2' not in (port2_query.stdout | join(' '))"
+
+    - name: Consultar porta ether3
+      community.routeros.command:
+        commands:
+          - "/interface bridge port print where interface=ether3"
+      register: port3_query
+      changed_when: false
+
+    - name: Adicionar ether3 à bridge se não estiver associada a nenhuma bridge
+      community.routeros.command:
+        commands:
+          - "/interface bridge port add bridge=br-lan interface=ether3 comment=managed-by-netops-lan-lab"
+      when: "'ether3' not in (port3_query.stdout | join(' '))"
+
+    - name: Consultar porta ether4
+      community.routeros.command:
+        commands:
+          - "/interface bridge port print where interface=ether4"
+      register: port4_query
+      changed_when: false
+
+    - name: Adicionar ether4 à bridge se não estiver associada a nenhuma bridge
+      community.routeros.command:
+        commands:
+          - "/interface bridge port add bridge=br-lan interface=ether4 comment=managed-by-netops-lan-lab"
+      when: "'ether4' not in (port4_query.stdout | join(' '))"
+
+    - name: Consultar endereço gateway
+      community.routeros.command:
+        commands:
+          - "/ip address print where address=192.168.10.1/24"
+      register: address_query
+      changed_when: false
+
+    - name: Adicionar gateway se o endereço não existir no roteador
+      community.routeros.command:
+        commands:
+          - "/ip address add address=192.168.10.1/24 interface=br-lan comment=managed-by-netops-lan-lab"
+      when: "'192.168.10.1/24' not in (address_query.stdout | join(' '))"
+
+    - name: Consultar pool DHCP
+      community.routeros.command:
+        commands:
+          - "/ip pool print where name=pool-lan"
+      register: pool_query
+      changed_when: false
+
+    - name: Criar pool DHCP se ausente
+      community.routeros.command:
+        commands:
+          - "/ip pool add name=pool-lan ranges=192.168.10.100-192.168.10.200 comment=managed-by-netops-lan-lab"
+      when: "'pool-lan' not in (pool_query.stdout | join(' '))"
+
+    - name: Ajustar faixa do pool DHCP existente
+      community.routeros.command:
+        commands:
+          - "/ip pool set [find where name=pool-lan] ranges=192.168.10.100-192.168.10.200"
+      when: "'pool-lan' in (pool_query.stdout | join(' '))"
       changed_when: true
 
-    - name: Adicionar endereço gateway se ausente
+    - name: Consultar servidor DHCP
       community.routeros.command:
         commands:
-          - ':if ([:len [/ip address find where address="{{ lan.gateway_cidr }}" and interface="{{ lan.bridge_name }}"]] = 0) do={ /ip address add address="{{ lan.gateway_cidr }}" interface="{{ lan.bridge_name }}" comment="managed-by-netops-lan-lab" }'
+          - "/ip dhcp-server print where name=dhcp-lan"
+      register: dhcp_query
+      changed_when: false
+
+    - name: Criar servidor DHCP se ausente
+      community.routeros.command:
+        commands:
+          - "/ip dhcp-server add name=dhcp-lan interface=br-lan address-pool=pool-lan lease-time=1d disabled=no comment=managed-by-netops-lan-lab"
+      when: "'dhcp-lan' not in (dhcp_query.stdout | join(' '))"
+
+    - name: Ajustar servidor DHCP existente
+      community.routeros.command:
+        commands:
+          - "/ip dhcp-server set [find where name=dhcp-lan] interface=br-lan address-pool=pool-lan lease-time=1d disabled=no"
+      when: "'dhcp-lan' in (dhcp_query.stdout | join(' '))"
       changed_when: true
 
-    - name: Criar ou ajustar pool DHCP nomeado
+    - name: Consultar rede DHCP
       community.routeros.command:
         commands:
-          - ':if ([:len [/ip pool find where name="{{ lan.dhcp.pool_name }}"]] = 0) do={ /ip pool add name="{{ lan.dhcp.pool_name }}" ranges="{{ lan.dhcp.range_start }}-{{ lan.dhcp.range_end }}" comment="managed-by-netops-lan-lab" } else={ /ip pool set [find where name="{{ lan.dhcp.pool_name }}"] ranges="{{ lan.dhcp.range_start }}-{{ lan.dhcp.range_end }}" }'
-      changed_when: true
+          - "/ip dhcp-server network print where address=192.168.10.0/24"
+      register: network_query
+      changed_when: false
 
-    - name: Criar ou ajustar servidor DHCP nomeado
+    - name: Criar rede DHCP se ausente
       community.routeros.command:
         commands:
-          - ':if ([:len [/ip dhcp-server find where name="{{ lan.dhcp.server_name }}"]] = 0) do={ /ip dhcp-server add name="{{ lan.dhcp.server_name }}" interface="{{ lan.bridge_name }}" address-pool="{{ lan.dhcp.pool_name }}" lease-time="{{ lan.dhcp.lease_time }}" disabled=no comment="managed-by-netops-lan-lab" } else={ /ip dhcp-server set [find where name="{{ lan.dhcp.server_name }}"] interface="{{ lan.bridge_name }}" address-pool="{{ lan.dhcp.pool_name }}" lease-time="{{ lan.dhcp.lease_time }}" disabled=no }'
-      changed_when: true
+          - "/ip dhcp-server network add address=192.168.10.0/24 gateway=192.168.10.1 comment=managed-by-netops-lan-lab"
+      when: "'192.168.10.0/24' not in (network_query.stdout | join(' '))"
 
-    - name: Criar ou ajustar rede DHCP
+    - name: Ajustar gateway da rede DHCP existente
       community.routeros.command:
         commands:
-          - ':if ([:len [/ip dhcp-server network find where address="192.168.10.0/24"]] = 0) do={ /ip dhcp-server network add address="192.168.10.0/24" gateway="192.168.10.1" comment="managed-by-netops-lan-lab" } else={ /ip dhcp-server network set [find where address="192.168.10.0/24"] gateway="192.168.10.1" }'
+          - "/ip dhcp-server network set [find where address=192.168.10.0/24] gateway=192.168.10.1"
+      when: "'192.168.10.0/24' in (network_query.stdout | join(' '))"
       changed_when: true
 
     - name: Ler estado depois das alterações
