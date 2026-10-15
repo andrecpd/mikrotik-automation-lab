@@ -1,0 +1,188 @@
+---
+- name: Configurar LAN no MikroTik CHR (confirmação explícita obrigatória)
+  hosts: lan_lab
+  gather_facts: false
+  connection: ansible.netcommon.network_cli
+  vars_files:
+    - ../vars/lan.yml
+  pre_tasks:
+    - name: Bloquear alterações sem confirmação explícita
+      ansible.builtin.assert:
+        that:
+          - apply_lan_config | default(false) | bool
+        fail_msg: "BLOQUEADO. Revise a configuração e use -e apply_lan_config=true somente no CHR de laboratório."
+        quiet: true
+    - name: Exigir senha no ambiente
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'MIKROTIK_PASSWORD') | length > 0
+        fail_msg: "Defina MIKROTIK_PASSWORD no ambiente."
+        quiet: true
+      delegate_to: localhost
+      run_once: true
+    - name: Validar parâmetros localmente antes de alterações
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ playbook_dir }}/../scripts/lan_precheck.py"
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+
+  tasks:
+    - name: Consultar estado atual (somente leitura)
+      community.routeros.command:
+        commands:
+          - "/interface bridge print detail"
+          - "/interface bridge port print detail"
+          - "/ip address print detail"
+          - "/ip pool print detail"
+          - "/ip dhcp-server print detail"
+          - "/ip dhcp-server network print detail"
+      changed_when: false
+
+    - name: Consultar bridge gerenciada
+      community.routeros.command:
+        commands:
+          - "/interface bridge print where name=br-lan"
+      register: bridge_query
+      changed_when: false
+
+    - name: Criar bridge somente se ausente
+      community.routeros.command:
+        commands:
+          - "/interface bridge add name=br-lan protocol-mode=rstp comment=managed-by-netops-lan-lab"
+      when: "'br-lan' not in (bridge_query.stdout | join(' '))"
+
+    - name: Garantir protocolo da bridge existente
+      community.routeros.command:
+        commands:
+          - "/interface bridge set [find where name=br-lan] protocol-mode=rstp"
+      changed_when: true
+
+    - name: Consultar porta ether2
+      community.routeros.command:
+        commands:
+          - "/interface bridge port print where interface=ether2"
+      register: port2_query
+      changed_when: false
+
+    - name: Adicionar ether2 à bridge se não estiver associada a nenhuma bridge
+      community.routeros.command:
+        commands:
+          - "/interface bridge port add bridge=br-lan interface=ether2 comment=managed-by-netops-lan-lab"
+      when: "'ether2' not in (port2_query.stdout | join(' '))"
+
+    - name: Consultar porta ether3
+      community.routeros.command:
+        commands:
+          - "/interface bridge port print where interface=ether3"
+      register: port3_query
+      changed_when: false
+
+    - name: Adicionar ether3 à bridge se não estiver associada a nenhuma bridge
+      community.routeros.command:
+        commands:
+          - "/interface bridge port add bridge=br-lan interface=ether3 comment=managed-by-netops-lan-lab"
+      when: "'ether3' not in (port3_query.stdout | join(' '))"
+
+    - name: Consultar porta ether4
+      community.routeros.command:
+        commands:
+          - "/interface bridge port print where interface=ether4"
+      register: port4_query
+      changed_when: false
+
+    - name: Adicionar ether4 à bridge se não estiver associada a nenhuma bridge
+      community.routeros.command:
+        commands:
+          - "/interface bridge port add bridge=br-lan interface=ether4 comment=managed-by-netops-lan-lab"
+      when: "'ether4' not in (port4_query.stdout | join(' '))"
+
+    - name: Consultar endereço gateway
+      community.routeros.command:
+        commands:
+          - "/ip address print where address=192.168.10.1/24"
+      register: address_query
+      changed_when: false
+
+    - name: Adicionar gateway se o endereço não existir no roteador
+      community.routeros.command:
+        commands:
+          - "/ip address add address=192.168.10.1/24 interface=br-lan comment=managed-by-netops-lan-lab"
+      when: "'192.168.10.1/24' not in (address_query.stdout | join(' '))"
+
+    - name: Consultar pool DHCP
+      community.routeros.command:
+        commands:
+          - "/ip pool print where name=pool-lan"
+      register: pool_query
+      changed_when: false
+
+    - name: Criar pool DHCP se ausente
+      community.routeros.command:
+        commands:
+          - "/ip pool add name=pool-lan ranges=192.168.10.100-192.168.10.200 comment=managed-by-netops-lan-lab"
+      when: "'pool-lan' not in (pool_query.stdout | join(' '))"
+
+    - name: Ajustar faixa do pool DHCP existente
+      community.routeros.command:
+        commands:
+          - "/ip pool set [find where name=pool-lan] ranges=192.168.10.100-192.168.10.200"
+      when: "'pool-lan' in (pool_query.stdout | join(' '))"
+      changed_when: true
+
+    - name: Consultar servidor DHCP
+      community.routeros.command:
+        commands:
+          - "/ip dhcp-server print where name=dhcp-lan"
+      register: dhcp_query
+      changed_when: false
+
+    - name: Criar servidor DHCP se ausente
+      community.routeros.command:
+        commands:
+          - "/ip dhcp-server add name=dhcp-lan interface=br-lan address-pool=pool-lan lease-time=1d disabled=no comment=managed-by-netops-lan-lab"
+      when: "'dhcp-lan' not in (dhcp_query.stdout | join(' '))"
+
+    - name: Ajustar servidor DHCP existente
+      community.routeros.command:
+        commands:
+          - "/ip dhcp-server set [find where name=dhcp-lan] interface=br-lan address-pool=pool-lan lease-time=1d disabled=no"
+      when: "'dhcp-lan' in (dhcp_query.stdout | join(' '))"
+      changed_when: true
+
+    - name: Consultar rede DHCP
+      community.routeros.command:
+        commands:
+          - "/ip dhcp-server network print where address=192.168.10.0/24"
+      register: network_query
+      changed_when: false
+
+    - name: Criar rede DHCP se ausente
+      community.routeros.command:
+        commands:
+          - "/ip dhcp-server network add address=192.168.10.0/24 gateway=192.168.10.1 comment=managed-by-netops-lan-lab"
+      when: "'192.168.10.0/24' not in (network_query.stdout | join(' '))"
+
+    - name: Ajustar gateway da rede DHCP existente
+      community.routeros.command:
+        commands:
+          - "/ip dhcp-server network set [find where address=192.168.10.0/24] gateway=192.168.10.1"
+      when: "'192.168.10.0/24' in (network_query.stdout | join(' '))"
+      changed_when: true
+
+    - name: Ler estado depois das alterações
+      community.routeros.command:
+        commands:
+          - "/interface bridge print detail"
+          - "/interface bridge port print detail"
+          - "/ip address print detail"
+          - "/ip pool print detail"
+          - "/ip dhcp-server print detail"
+          - "/ip dhcp-server network print detail"
+      changed_when: false
+
+    - name: Orientar auditoria final
+      ansible.builtin.debug:
+        msg: "Configuração enviada. Execute python scripts/lan_audit.py para auditoria PASS/FAIL independente."
